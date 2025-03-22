@@ -1,7 +1,6 @@
-CREATE DATABASE qg;
 USE qg;
 SELECT @@sql_mode;
-
+SELECT COUNT(*) FROM students WHERE student_id = 3;
 -- 用户表
 CREATE TABLE user (
                        user_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

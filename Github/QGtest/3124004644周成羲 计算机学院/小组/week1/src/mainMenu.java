@@ -50,7 +50,19 @@ public class mainMenu {
                 String role = rs.getString("role");
                 System.out.println("登录成功！你的角色是：" + role);
                 if ("student".equals(role)) {
-                    studentMenu(rs.getInt("user_id"));
+                    int userId = rs.getInt("user_id");
+
+                    // 查询 students 表获取 student_id
+                    String studentSql = "SELECT student_id FROM students WHERE user_id = ?";
+                    PreparedStatement studentPs = conn.prepareStatement(studentSql);
+                    studentPs.setInt(1, userId);
+                    ResultSet studentRs = studentPs.executeQuery();
+                    if (studentRs.next()) {
+                        int studentId = studentRs.getInt("student_id");
+                        studentMenu(userId, studentId);
+                    } else {
+                        System.out.println("未找到学生信息！");
+                    }
                 } else {
                     adminMenu();
                 }
@@ -124,82 +136,8 @@ public class mainMenu {
         }
     }
 
-    // 查询所有课程
-    private static void showAllCourses() {
-        try (Connection conn = main.getConnection()) {
-            String sql = "SELECT * FROM courses";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                System.out.println(rs.getInt("course_id") + ". " + rs.getString("course_name") + " - " + rs.getInt("credits") + "学分");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-    // 修改课程学分
-    private static void updateCourseCredits() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("请输入要修改的课程ID：");
-        int courseId = scanner.nextInt();
-        System.out.print("请输入新的学分：");
-        int newCredits = scanner.nextInt();
-
-        try (Connection conn = main.getConnection()) {
-            String sql = "UPDATE courses SET credits = ? WHERE course_id = ?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, newCredits);
-            ps.setInt(2, courseId);
-            ps.executeUpdate();
-            System.out.println("课程学分更新成功！");
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-    // 查询某课程的学生名单
-    private static void showCourseStudents() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("请输入课程ID：");
-        int courseId = scanner.nextInt();
-
-        try (Connection conn = main.getConnection()) {
-            String sql = "SELECT s.name, u.username FROM students s "
-                    + "JOIN student_courses sc ON s.student_id = sc.student_id "
-                    + "JOIN user u ON s.user_id = u.user_id "
-                    + "WHERE sc.course_id = ?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, courseId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                System.out.println(rs.getString("name") + " - " + rs.getString("username"));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-    // 查询某学生的选课情况
-    private static void showStudentCourses() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("请输入学生ID：");
-        int studentId = scanner.nextInt();
-
-        try (Connection conn = main.getConnection()) {
-            String sql = "SELECT c.course_name, c.credits FROM student_courses sc "
-                    + "JOIN courses c ON sc.course_id = c.course_id "
-                    + "WHERE sc.student_id = ?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, studentId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                System.out.println(rs.getString("course_name") + " - " + rs.getInt("credits") + "学分");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
     // 学生功能菜单
-    private static void studentMenu(int userId) {
+    private static void studentMenu(int userId,int studentID) {
         Scanner scanner = new Scanner(System.in);
         while (true) {
             System.out.println("===== 学生菜单 =====");
@@ -217,16 +155,16 @@ public class mainMenu {
                     showAvailableCourses();
                     break;
                 case 2:
-                    selectCourse(userId);
+                    selectCourse(studentID);
                     break;
                 case 3:
-                    dropCourse(userId);
+                    dropCourse(studentID);
                     break;
                 case 4:
-                    showSelectedCourses(userId);
+                    showSelectedCourses(studentID);
                     break;
                 case 5:
-                    updatePhone(userId);
+                    updatePhone(studentID);
                     break;
                 case 6:
                     System.out.println("退出学生菜单");
@@ -252,7 +190,7 @@ public class mainMenu {
             System.out.println("8. 删除课程");
             System.out.println("9. 更改本学期课程开放状态");
             System.out.println("10. 退出");
-            System.out.print("请选择操作（输入 1-9）：");
+            System.out.print("请选择操作（输入 1-10）：");
             int choice = scanner.nextInt();
 
             switch (choice) {
@@ -306,35 +244,72 @@ public class mainMenu {
         }
     }
 
-    // 选择课程
+    //选择课程
     private static void selectCourse(int studentId) {
         Scanner scanner = new Scanner(System.in);
         System.out.print("请输入要选择的课程ID：");
         int courseId = scanner.nextInt();
 
         try (Connection conn = main.getConnection()) {
-            String sql = "SELECT COUNT(*) FROM student_courses WHERE student_id = ?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, studentId);
-            ResultSet rs = ps.executeQuery();
-            rs.next();
-            int courseCount = rs.getInt(1);
-            if (courseCount < 5) {
-                sql = "INSERT INTO student_courses (student_id, course_id) VALUE(?,?)";
-                Connection conn2 =main.getConnection();
-                PreparedStatement pss = conn2.prepareStatement(sql);
-                pss = conn2.prepareStatement(sql);
-                pss.setInt(1, studentId);
-                pss.setInt(2, courseId);
-                pss.executeUpdate();
-                System.out.println("课程选择成功！");
+            // 1. 检查学生是否存在于 students 表中
+            String checkStudentSql = "SELECT COUNT(*) FROM students WHERE student_id = ?";
+            PreparedStatement checkStudentPs = conn.prepareStatement(checkStudentSql);
+            checkStudentPs.setInt(1, studentId);
+            ResultSet checkStudentRs = checkStudentPs.executeQuery();
+
+            if (checkStudentRs.next() && checkStudentRs.getInt(1) > 0) {  // 学生存在
+                // 2. 查询课程是否开放
+                String checkCourseSql = "SELECT is_open FROM courses WHERE course_id = ?";
+                PreparedStatement checkCoursePs = conn.prepareStatement(checkCourseSql);
+                checkCoursePs.setInt(1, courseId);
+                ResultSet checkCourseRs = checkCoursePs.executeQuery();
+
+                if (checkCourseRs.next()) {
+                    boolean isCourseOpen = checkCourseRs.getBoolean("is_open");
+
+                    if (!isCourseOpen) {
+                        System.out.println("该课程目前不可选择！");
+                        return;
+                    }
+                }
+
+                // 3. 查询学生已选课程数量
+                String sql = "SELECT COUNT(*) FROM student_courses WHERE student_id = ?";
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setInt(1, studentId);
+                ResultSet rs = ps.executeQuery();
+
+                if (rs.next()) {  // 确保有数据
+                    int courseCount = rs.getInt(1);
+                    if (courseCount < 5) {
+                        // 4. 如果选课数量小于5，允许选课
+                        sql = "INSERT INTO student_courses (student_id, course_id) VALUES (?, ?)";
+                        try (Connection conn2 = main.getConnection()) {  // 使用连接池管理
+                            PreparedStatement pss = conn2.prepareStatement(sql);
+                            pss.setInt(1, studentId);
+                            pss.setInt(2, courseId);
+                            pss.executeUpdate();
+                            System.out.println("课程选择成功！");
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                            System.out.println("课程选择失败！");
+                        }
+                    } else {
+                        System.out.println("你最多只能选择5门课程！");
+                    }
+                } else {
+                    System.out.println("查询错误，没有找到该学生记录！");
+                }
             } else {
-                System.out.println("你最多只能选择5门课程！");
+                System.out.println("该学生不存在，请先注册或检查学生ID！");
             }
         } catch (SQLException e) {
             e.printStackTrace();
+            System.out.println("数据库操作失败！");
         }
     }
+
+
 
     // 退选课程
     private static void dropCourse(int studentId) {
@@ -356,17 +331,24 @@ public class mainMenu {
 
     // 查看已选课程
     private static void showSelectedCourses(int studentId) {
+        System.out.println("查询 student_id: " + studentId + " 的已选课程");
         try (Connection conn = main.getConnection()) {
             String sql = "SELECT c.course_id, c.course_name, c.credits FROM student_courses sc "
                     + "JOIN courses c ON sc.course_id = c.course_id WHERE sc.student_id = ?";
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setInt(1, studentId);
             ResultSet rs = ps.executeQuery();
+            boolean found = false;
             while (rs.next()) {
                 System.out.println(rs.getInt("course_id") + ". " + rs.getString("course_name") + " - " + rs.getInt("credits") + "学分");
+                found = true;
+            }
+            if (!found) {
+                System.out.println("没有找到已选课程！");
             }
         } catch (SQLException e) {
             e.printStackTrace();
+            System.out.println("数据库查询错误！");
         }
     }
 
@@ -469,6 +451,7 @@ public class mainMenu {
             e.printStackTrace();
         }
     }
+
     // 切换课程开放状态
     private static void toggleCourseStatus() {
         Scanner scanner = new Scanner(System.in);
@@ -500,6 +483,83 @@ public class mainMenu {
                 }
             } else {
                 System.out.println("未找到该课程，请检查ID是否正确！");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 查询所有课程
+    private static void showAllCourses() {
+        try (Connection conn = main.getConnection()) {
+            String sql = "SELECT * FROM courses";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                System.out.println(rs.getInt("course_id") + ". " + rs.getString("course_name") + " - " + rs.getInt("credits") + "学分");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 修改课程学分
+    private static void updateCourseCredits() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("请输入要修改的课程ID：");
+        int courseId = scanner.nextInt();
+        System.out.print("请输入新的学分：");
+        int newCredits = scanner.nextInt();
+
+        try (Connection conn = main.getConnection()) {
+            String sql = "UPDATE courses SET credits = ? WHERE course_id = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, newCredits);
+            ps.setInt(2, courseId);
+            ps.executeUpdate();
+            System.out.println("课程学分更新成功！");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 查询某课程的学生名单
+    private static void showCourseStudents() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("请输入课程ID：");
+        int courseId = scanner.nextInt();
+
+        try (Connection conn = main.getConnection()) {
+            String sql = "SELECT s.name, u.username FROM students s "
+                    + "JOIN student_courses sc ON s.student_id = sc.student_id "
+                    + "JOIN user u ON s.user_id = u.user_id "
+                    + "WHERE sc.course_id = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, courseId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                System.out.println(rs.getString("name") + " - " + rs.getString("username"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // 查询某学生的选课情况
+    private static void showStudentCourses() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("请输入学生ID：");
+        int studentId = scanner.nextInt();
+
+        try (Connection conn = main.getConnection()) {
+            String sql = "SELECT c.course_name, c.credits FROM student_courses sc "
+                    + "JOIN courses c ON sc.course_id = c.course_id "
+                    + "WHERE sc.student_id = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, studentId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                System.out.println(rs.getString("course_name") + " - " + rs.getInt("credits") + "学分");
             }
         } catch (SQLException e) {
             e.printStackTrace();
