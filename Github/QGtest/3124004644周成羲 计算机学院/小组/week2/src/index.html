@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录/注册页面</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+    <div class="container">
+        <h2>{{ isLogin ? '登录' : '注册' }}</h2>
+        <form @submit.prevent="isLogin ? login() : register()">
+            <div class="form-group">
+                <label for="account">账号（手机号/邮箱）</label>
+                <input type="text" id="account" v-model="account" required>
+                <p v-if="!isLogin && !account && showError" class="error">账号不能为空</p>
+            </div>
+            <div v-if="!isLogin" class="form-group">
+                <label for="phone">手机号</label>
+                <input type="tel" id="phone" v-model="phone" required>
+                <p v-if="!phone && showError" class="error">手机号不能为空</p>
+            </div>
+            <div v-if="!isLogin" class="form-group">
+                <label for="email">邮箱</label>
+                <input type="email" id="email" v-model="email" required>
+                <p v-if="!email && showError" class="error">邮箱不能为空</p>
+            </div>
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" v-model="password" required>
+                <p v-if="!password && showError" class="error">密码不能为空</p>
+            </div>
+            <div v-if="!isLogin" class="form-group">
+                <label for="confirm-password">确认密码</label>
+                <input type="password" id="confirm-password" v-model="confirmPassword" required>
+                <p v-if="!confirmPassword && showError" class="error">确认密码不能为空</p>
+            </div>
+            <button type="submit">{{ isLogin ? '登录' : '注册' }}</button>
+            <p class="toggle" @click="isLogin = !isLogin">{{ isLogin ? '没有账号？去注册' : '已有账号？去登录' }}</p>
+        </form>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
